@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Net.NetworkInformation;
+using System.Net;
 using System.Text.RegularExpressions;
 
 class Program
@@ -9,6 +11,10 @@ class Program
     {
         public string Name;
         public string Status;
+        public string MAC;
+        public List<string> IPv4 = new List<string>();
+        public List<string> IPv6 = new List<string>();
+        public List<string> DNS = new List<string>();
     }
 
     static void Main()
@@ -17,7 +23,6 @@ class Program
         {
             Console.Clear();
             List<Adapter> adapters = GetAllAdapters();
-
             if (adapters.Count == 0)
             {
                 Console.WriteLine("No network adapters found.");
@@ -29,7 +34,12 @@ class Program
             Console.WriteLine("=== Network Adapters ===");
             for (int i = 0; i < adapters.Count; i++)
             {
-                Console.WriteLine("{0}. {1} ({2})", i + 1, adapters[i].Name, adapters[i].Status);
+                Adapter a = adapters[i];
+                Console.WriteLine("{0}. {1} ({2})", i + 1, a.Name, a.Status);
+                Console.WriteLine("   MAC: {0}", a.MAC);
+                Console.WriteLine("   IPv4: {0}", string.Join(", ", a.IPv4));
+                Console.WriteLine("   IPv6: {0}", string.Join(", ", a.IPv6));
+                Console.WriteLine("   DNS: {0}", string.Join(", ", a.DNS));
             }
             Console.WriteLine("0. Exit");
             Console.Write("Select a card: ");
@@ -53,29 +63,30 @@ class Program
     static List<Adapter> GetAllAdapters()
     {
         List<Adapter> list = new List<Adapter>();
+        NetworkInterface[] nics = NetworkInterface.GetAllNetworkInterfaces();
 
-        ProcessStartInfo psi = new ProcessStartInfo("netsh", "interface show interface");
-        psi.RedirectStandardOutput = true;
-        psi.UseShellExecute = false;
-        psi.CreateNoWindow = true;
-
-        Process proc = Process.Start(psi);
-        string output = proc.StandardOutput.ReadToEnd();
-        proc.WaitForExit();
-
-        string[] lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-
-        for (int i = 3; i < lines.Length; i++)
+        foreach (NetworkInterface nic in nics)
         {
-            string line = lines[i].Trim();
-            if (string.IsNullOrEmpty(line)) continue;
-
-            string[] parts = Regex.Split(line, @"\s{2,}");
-            if (parts.Length < 4) continue;
-
             Adapter a = new Adapter();
-            a.Status = parts[0]; // Enabled / Disabled
-            a.Name = parts[3];
+            a.Name = nic.Name;
+            a.Status = nic.OperationalStatus == OperationalStatus.Up ? "Enabled" : "Disabled";
+            a.MAC = nic.GetPhysicalAddress().ToString();
+
+            IPInterfaceProperties props = nic.GetIPProperties();
+
+            foreach (UnicastIPAddressInformation ip in props.UnicastAddresses)
+            {
+                if (ip.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                    a.IPv4.Add(ip.Address.ToString());
+                else if (ip.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+                    a.IPv6.Add(ip.Address.ToString());
+            }
+
+            foreach (IPAddress dns in props.DnsAddresses)
+            {
+                a.DNS.Add(dns.ToString());
+            }
+
             list.Add(a);
         }
 
@@ -88,6 +99,12 @@ class Program
         {
             Console.Clear();
             Console.WriteLine("=== Adapter: {0} ===", adapter.Name);
+            Console.WriteLine("Status: {0}", adapter.Status);
+            Console.WriteLine("MAC: {0}", adapter.MAC);
+            Console.WriteLine("IPv4: {0}", string.Join(", ", adapter.IPv4));
+            Console.WriteLine("IPv6: {0}", string.Join(", ", adapter.IPv6));
+            Console.WriteLine("DNS: {0}", string.Join(", ", adapter.DNS));
+            Console.WriteLine();
             Console.WriteLine("1. Enable / Disable");
             Console.WriteLine("2. Set IP");
             Console.WriteLine("3. Set DNS");
