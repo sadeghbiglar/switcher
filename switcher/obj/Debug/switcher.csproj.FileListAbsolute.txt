@@ -1,0 +1,6 @@
+C:\Users\sadegh biglar\Desktop\switcher\switcher\switcher\bin\Debug\switcher.exe.config
+C:\Users\sadegh biglar\Desktop\switcher\switcher\switcher\bin\Debug\switcher.exe
+C:\Users\sadegh biglar\Desktop\switcher\switcher\switcher\bin\Debug\switcher.pdb
+C:\Users\sadegh biglar\Desktop\switcher\switcher\switcher\obj\Debug\switcher.csprojResolveAssemblyReference.cache
+C:\Users\sadegh biglar\Desktop\switcher\switcher\switcher\obj\Debug\switcher.exe
+C:\Users\sadegh biglar\Desktop\switcher\switcher\switcher\obj\Debug\switcher.pdb
