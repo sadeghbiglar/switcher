@@ -24,6 +24,7 @@ class Program
         {
             Console.Clear();
             List<Adapter> adapters = GetAllAdapters();
+
             if (adapters.Count == 0)
             {
                 Console.WriteLine("No network adapters found.");
@@ -32,33 +33,7 @@ class Program
                 return;
             }
 
-            // Header
-            Console.WriteLine("=== Network Adapters ===");
-            Console.WriteLine("{0,-3} {1,-25} {2,-10} {3,-20} {4,-20} {5,-20}", "No", "Name", "Status", "IPv4", "IPv6", "DNS");
-            Console.WriteLine(new string('-', 110));
-
-            for (int i = 0; i < adapters.Count; i++)
-            {
-                Adapter a = adapters[i];
-
-                // رنگ کارت فیزیکی و مجازی
-                if (a.IsPhysical)
-                    Console.ForegroundColor = ConsoleColor.Cyan; // Physical: Cyan
-                else
-                    Console.ForegroundColor = ConsoleColor.Yellow; // Virtual: Yellow
-
-                // رنگ وضعیت
-                string statusText = a.Status;
-                if (statusText.Equals("Enabled", StringComparison.OrdinalIgnoreCase))
-                    Console.ForegroundColor = ConsoleColor.Green;
-                else if (statusText.Equals("Disabled", StringComparison.OrdinalIgnoreCase))
-                    Console.ForegroundColor = ConsoleColor.Red;
-
-                Console.WriteLine("{0,-3} {1,-25} {2,-10} {3,-20} {4,-20} {5,-20}",
-                    i + 1, a.Name, a.Status, string.Join(",", a.IPv4), string.Join(",", a.IPv6), string.Join(",", a.DNS));
-
-                Console.ResetColor();
-            }
+            PrintTable(adapters);
 
             Console.WriteLine("0. Exit");
             Console.Write("Select a card: ");
@@ -114,6 +89,41 @@ class Program
         return list;
     }
 
+    static void PrintTable(List<Adapter> adapters)
+    {
+        Console.WriteLine("=== Network Adapters ===");
+        string line = "+----+-------------------------+----------+-------------------+-------------------+-------------------+";
+        Console.WriteLine(line);
+        Console.WriteLine("| {0,-2} | {1,-23} | {2,-8} | {3,-17} | {4,-17} | {5,-17} |", "No", "Name", "Status", "IPv4", "IPv6", "DNS");
+        Console.WriteLine(line);
+
+        for (int i = 0; i < adapters.Count; i++)
+        {
+            Adapter a = adapters[i];
+
+            // رنگ کارت
+            ConsoleColor color = a.IsPhysical ? ConsoleColor.Cyan : ConsoleColor.Yellow;
+            Console.ForegroundColor = color;
+
+            // وضعیت کارت
+            string status = a.Status;
+            ConsoleColor statusColor = status.Equals("Enabled", StringComparison.OrdinalIgnoreCase) ? ConsoleColor.Green : ConsoleColor.Red;
+
+            // چاپ ردیف با رنگ وضعیت
+            Console.Write("| {0,-2} | {1,-23} | ", i + 1, a.Name);
+            Console.ForegroundColor = statusColor;
+            Console.Write("{0,-8}", status);
+            Console.ForegroundColor = color;
+            Console.Write(" | {0,-17} | {1,-17} | {2,-17} |",
+                a.IPv4.Count > 0 ? a.IPv4[0] : "-",
+                a.IPv6.Count > 0 ? a.IPv6[0] : "-",
+                a.DNS.Count > 0 ? a.DNS[0] : "-");
+            Console.WriteLine();
+            Console.WriteLine(line);
+            Console.ResetColor();
+        }
+    }
+
     static void AdapterMenu(Adapter adapter)
     {
         while (true)
@@ -122,9 +132,9 @@ class Program
             Console.WriteLine("=== Adapter: {0} ===", adapter.Name);
             Console.WriteLine("Status: {0}", adapter.Status);
             Console.WriteLine("MAC: {0}", adapter.MAC);
-            Console.WriteLine("IPv4: {0}", string.Join(", ", adapter.IPv4));
-            Console.WriteLine("IPv6: {0}", string.Join(", ", adapter.IPv6));
-            Console.WriteLine("DNS: {0}", string.Join(", ", adapter.DNS));
+            Console.WriteLine("IPv4: {0}", adapter.IPv4.Count > 0 ? string.Join(",", adapter.IPv4) : "-");
+            Console.WriteLine("IPv6: {0}", adapter.IPv6.Count > 0 ? string.Join(",", adapter.IPv6) : "-");
+            Console.WriteLine("DNS: {0}", adapter.DNS.Count > 0 ? string.Join(",", adapter.DNS) : "-");
             Console.WriteLine();
             Console.WriteLine("1. Enable / Disable");
             Console.WriteLine("2. Set IP");
@@ -177,6 +187,7 @@ class Program
         if (choice == "1")
         {
             RunNetsh("interface ip set address name=\"" + adapter.Name + "\" dhcp");
+            adapter.IPv4.Clear();
             Console.WriteLine("IP set to automatic. Press Enter...");
             Console.ReadLine();
         }
@@ -206,6 +217,8 @@ class Program
             }
 
             RunNetsh(string.Format("interface ip set address name=\"{0}\" static {1} {2} {3}", adapter.Name, ip, mask, gateway));
+            adapter.IPv4.Clear();
+            adapter.IPv4.Add(ip);
             Console.WriteLine("Manual IP set. Press Enter...");
             Console.ReadLine();
         }
@@ -221,19 +234,26 @@ class Program
         Console.Write("Choose: ");
         string choice = Console.ReadLine();
 
+        adapter.DNS.Clear();
         switch (choice)
         {
             case "1":
                 RunNetsh("interface ip set dns name=\"" + adapter.Name + "\" static 8.8.8.8 primary");
                 RunNetsh("interface ip add dns name=\"" + adapter.Name + "\" 1.1.1.1 index=2");
+                adapter.DNS.Add("8.8.8.8");
+                adapter.DNS.Add("1.1.1.1");
                 break;
             case "2":
                 RunNetsh("interface ip set dns name=\"" + adapter.Name + "\" static 4.2.2.4 primary");
                 RunNetsh("interface ip add dns name=\"" + adapter.Name + "\" 8.8.8.8 index=2");
+                adapter.DNS.Add("4.2.2.4");
+                adapter.DNS.Add("8.8.8.8");
                 break;
             case "3":
                 RunNetsh("interface ip set dns name=\"" + adapter.Name + "\" static 178.22.122.100 primary");
                 RunNetsh("interface ip add dns name=\"" + adapter.Name + "\" 185.51.200.2 index=2");
+                adapter.DNS.Add("178.22.122.100");
+                adapter.DNS.Add("185.51.200.2");
                 break;
             case "4":
                 RunNetsh("interface ip set dns name=\"" + adapter.Name + "\" dhcp");
