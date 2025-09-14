@@ -13,8 +13,13 @@ class Program
             var adapters = NetworkInterface
                 .GetAllNetworkInterfaces()
                 .Where(ni =>
-                    ni.NetworkInterfaceType == NetworkInterfaceType.Ethernet ||
-                    ni.NetworkInterfaceType == NetworkInterfaceType.Wireless80211)
+                    (ni.NetworkInterfaceType == NetworkInterfaceType.Ethernet ||
+                     ni.NetworkInterfaceType == NetworkInterfaceType.Wireless80211)
+                    &&
+                    ni.OperationalStatus != OperationalStatus.Unknown
+                    &&
+                    !IsVirtual(ni)
+                )
                 .ToArray();
 
             if (adapters.Length == 0)
@@ -28,15 +33,12 @@ class Program
                 {
                     Console.WriteLine(new string('=', 60));
                     Console.WriteLine($"Physical Adapter #{idx++}");
-                    Console.WriteLine($"Name:           {ni.Name}");
-                    Console.WriteLine($"ID:             {ni.Id}");
-                    Console.WriteLine($"Description:    {ni.Description}");
-                    Console.WriteLine($"Type:           {ni.NetworkInterfaceType}");
-                    Console.WriteLine($"Status:         {ni.OperationalStatus}");
-                    Console.WriteLine($"Speed:          {FormatSpeed(ni.Speed)}");
-
-                    var mac = ni.GetPhysicalAddress();
-                    Console.WriteLine($"MAC:            {FormatMac(mac)}");
+                    Console.WriteLine($"Name:        {ni.Name}");
+                    Console.WriteLine($"Description: {ni.Description}");
+                    Console.WriteLine($"Type:        {ni.NetworkInterfaceType}");
+                    Console.WriteLine($"Status:      {ni.OperationalStatus}");
+                    Console.WriteLine($"Speed:       {FormatSpeed(ni.Speed)}");
+                    Console.WriteLine($"MAC:         {FormatMac(ni.GetPhysicalAddress())}");
 
                     var ipProps = ni.GetIPProperties();
 
@@ -61,14 +63,6 @@ class Program
                             Console.WriteLine($"  - {g.Address}");
                     }
 
-                    var dns = ipProps.DnsAddresses;
-                    if (dns.Count > 0)
-                    {
-                        Console.WriteLine("DNS Servers:");
-                        foreach (var d in dns)
-                            Console.WriteLine($"  - {d}");
-                    }
-
                     Console.WriteLine(new string('=', 60));
                     Console.WriteLine();
                 }
@@ -81,6 +75,20 @@ class Program
 
         Console.WriteLine("\nPress any key to exit...");
         Console.ReadKey();
+    }
+
+    static bool IsVirtual(NetworkInterface ni)
+    {
+        string desc = ni.Description.ToLower();
+        string name = ni.Name.ToLower();
+
+        // لیست کلمات کلیدی کارت‌های مجازی
+        string[] virtualKeywords = {
+            "virtual", "vpn", "loopback", "tunneling",
+            "pseudo", "vmware", "hyper-v", "bluetooth"
+        };
+
+        return virtualKeywords.Any(k => desc.Contains(k) || name.Contains(k));
     }
 
     static string FormatMac(PhysicalAddress pa)
