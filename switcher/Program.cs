@@ -32,15 +32,25 @@ class Program
             }
 
             Console.WriteLine("=== Network Adapters ===");
+            Console.WriteLine("{0,-3} {1,-25} {2,-10} {3,-20} {4,-20} {5,-20}", "No", "Name", "Status", "IPv4", "IPv6", "DNS");
+
             for (int i = 0; i < adapters.Count; i++)
             {
                 Adapter a = adapters[i];
-                Console.WriteLine("{0}. {1} ({2})", i + 1, a.Name, a.Status);
-                Console.WriteLine("   MAC: {0}", a.MAC);
-                Console.WriteLine("   IPv4: {0}", string.Join(", ", a.IPv4));
-                Console.WriteLine("   IPv6: {0}", string.Join(", ", a.IPv6));
-                Console.WriteLine("   DNS: {0}", string.Join(", ", a.DNS));
+
+                // رنگ وضعیت
+                if (a.Status.Equals("Enabled", StringComparison.OrdinalIgnoreCase))
+                    Console.ForegroundColor = ConsoleColor.Green;
+                else
+                    Console.ForegroundColor = ConsoleColor.Red;
+
+                Console.WriteLine("{0,-3} {1,-25} {2,-10} {3,-20} {4,-20} {5,-20}",
+                    i + 1, a.Name, a.Status,
+                    string.Join(",", a.IPv4), string.Join(",", a.IPv6), string.Join(",", a.DNS));
+
+                Console.ResetColor();
             }
+
             Console.WriteLine("0. Exit");
             Console.Write("Select a card: ");
 
@@ -55,8 +65,7 @@ class Program
                 continue;
             }
 
-            Adapter selectedAdapter = adapters[selectedIndex - 1];
-            AdapterMenu(selectedAdapter);
+            AdapterMenu(adapters[selectedIndex - 1]);
         }
     }
 
@@ -114,17 +123,10 @@ class Program
 
             switch (choice)
             {
-                case "1":
-                    ToggleAdapter(adapter);
-                    break;
-                case "2":
-                    SetIP(adapter);
-                    break;
-                case "3":
-                    SetDNS(adapter);
-                    break;
-                case "0":
-                    return;
+                case "1": ToggleAdapter(adapter); break;
+                case "2": SetIP(adapter); break;
+                case "3": SetDNS(adapter); break;
+                case "0": return;
                 default:
                     Console.WriteLine("Invalid choice. Press Enter...");
                     Console.ReadLine();
