@@ -12,6 +12,7 @@ class Program
         public string Name;
         public string Status;
         public string MAC;
+        public bool IsPhysical;
         public List<string> IPv4 = new List<string>();
         public List<string> IPv6 = new List<string>();
         public List<string> DNS = new List<string>();
@@ -31,29 +32,36 @@ class Program
                 return;
             }
 
+            // Header
             Console.WriteLine("=== Network Adapters ===");
             Console.WriteLine("{0,-3} {1,-25} {2,-10} {3,-20} {4,-20} {5,-20}", "No", "Name", "Status", "IPv4", "IPv6", "DNS");
+            Console.WriteLine(new string('-', 110));
 
             for (int i = 0; i < adapters.Count; i++)
             {
                 Adapter a = adapters[i];
 
-                // رنگ وضعیت
-                if (a.Status.Equals("Enabled", StringComparison.OrdinalIgnoreCase))
-                    Console.ForegroundColor = ConsoleColor.Green;
+                // رنگ کارت فیزیکی و مجازی
+                if (a.IsPhysical)
+                    Console.ForegroundColor = ConsoleColor.Cyan; // Physical: Cyan
                 else
+                    Console.ForegroundColor = ConsoleColor.Yellow; // Virtual: Yellow
+
+                // رنگ وضعیت
+                string statusText = a.Status;
+                if (statusText.Equals("Enabled", StringComparison.OrdinalIgnoreCase))
+                    Console.ForegroundColor = ConsoleColor.Green;
+                else if (statusText.Equals("Disabled", StringComparison.OrdinalIgnoreCase))
                     Console.ForegroundColor = ConsoleColor.Red;
 
                 Console.WriteLine("{0,-3} {1,-25} {2,-10} {3,-20} {4,-20} {5,-20}",
-                    i + 1, a.Name, a.Status,
-                    string.Join(",", a.IPv4), string.Join(",", a.IPv6), string.Join(",", a.DNS));
+                    i + 1, a.Name, a.Status, string.Join(",", a.IPv4), string.Join(",", a.IPv6), string.Join(",", a.DNS));
 
                 Console.ResetColor();
             }
 
             Console.WriteLine("0. Exit");
             Console.Write("Select a card: ");
-
             string input = Console.ReadLine();
             if (input == "0") break;
 
@@ -80,6 +88,10 @@ class Program
             a.Name = nic.Name;
             a.Status = nic.OperationalStatus == OperationalStatus.Up ? "Enabled" : "Disabled";
             a.MAC = nic.GetPhysicalAddress().ToString();
+            a.IsPhysical = nic.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
+                           nic.NetworkInterfaceType != NetworkInterfaceType.Tunnel &&
+                           !nic.Description.ToLower().Contains("virtual") &&
+                           !nic.Description.ToLower().Contains("vpn");
 
             IPInterfaceProperties props = nic.GetIPProperties();
 
