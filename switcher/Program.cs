@@ -1,157 +1,139 @@
 ﻿using System;
-using System.Net.NetworkInformation;
-using System.Net.Sockets;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 class Program
 {
+    class Adapter
+    {
+        public string Name;
+        public string Status;
+    }
+
     static void Main()
     {
         while (true)
         {
             Console.Clear();
-            Console.WriteLine("=== Network Card Menu ===");
-            Console.WriteLine("1. Show All Physical Network Cards");
-            Console.WriteLine("2. Show Only Active (Connected) Cards");
-            Console.WriteLine("3. Show Only WiFi Cards");
-            Console.WriteLine("4. Show Only LAN (Ethernet) Cards");
-            Console.WriteLine("5. Show Details (IP + MAC)");
-            Console.WriteLine("0. Exit");
-            Console.Write("Choose an option: ");
+            List<Adapter> adapters = GetActiveAdapters();
 
-            string choice = Console.ReadLine();
-
-            if (choice == "1")
+            if (adapters.Count == 0)
             {
-                ShowNetworkCards(FilterType.AllPhysical);
-                ReturnToMenu();
-            }
-            else if (choice == "2")
-            {
-                ShowNetworkCards(FilterType.Active);
-                ReturnToMenu();
-            }
-            else if (choice == "3")
-            {
-                ShowNetworkCards(FilterType.WiFi);
-                ReturnToMenu();
-            }
-            else if (choice == "4")
-            {
-                ShowNetworkCards(FilterType.LAN);
-                ReturnToMenu();
-            }
-            else if (choice == "5")
-            {
-                ShowNetworkDetails();
-                ReturnToMenu();
-            }
-            else if (choice == "0")
-            {
-                break;
-            }
-            else
-            {
-                Console.WriteLine("Invalid choice, press Enter to try again...");
+                Console.WriteLine("No active network adapters found.");
+                Console.WriteLine("Press Enter to exit...");
                 Console.ReadLine();
+                return;
             }
+
+            Console.WriteLine("=== Active Network Adapters ===");
+            for (int i = 0; i < adapters.Count; i++)
+            {
+                Console.WriteLine("{0}. {1}", i + 1, adapters[i].Name);
+            }
+            Console.WriteLine("0. Exit");
+            Console.Write("Select a card: ");
+
+            string input = Console.ReadLine();
+            if (input == "0") break;
+
+            int selectedIndex;
+            if (!int.TryParse(input, out selectedIndex) || selectedIndex < 1 || selectedIndex > adapters.Count)
+            {
+                Console.WriteLine("Invalid choice. Press Enter...");
+                Console.ReadLine();
+                continue;
+            }
+
+            Adapter selectedAdapter = adapters[selectedIndex - 1];
+            SetDNS(selectedAdapter);
         }
     }
 
-    static void ReturnToMenu()
+    static List<Adapter> GetActiveAdapters()
     {
-        Console.WriteLine("\nPress Enter to return to menu...");
+        List<Adapter> list = new List<Adapter>();
+
+        ProcessStartInfo psi = new ProcessStartInfo("netsh", "interface show interface");
+        psi.RedirectStandardOutput = true;
+        psi.UseShellExecute = false;
+        psi.CreateNoWindow = true;
+
+        Process proc = Process.Start(psi);
+        string output = proc.StandardOutput.ReadToEnd();
+        proc.WaitForExit();
+
+        string[] lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+        for (int i = 3; i < lines.Length; i++)
+        {
+            string line = lines[i].Trim();
+            if (string.IsNullOrEmpty(line)) continue;
+
+            string[] parts = Regex.Split(line, @"\s{2,}");
+            if (parts.Length < 4) continue;
+
+            string status = parts[0];
+            string name = parts[3];
+
+            if (status.Equals("Enabled", StringComparison.OrdinalIgnoreCase))
+            {
+                Adapter a = new Adapter();
+                a.Name = name;
+                a.Status = status;
+                list.Add(a);
+            }
+        }
+
+        return list;
+    }
+
+    static void SetDNS(Adapter adapter)
+    {
+        Console.Clear();
+        Console.WriteLine("=== Set DNS for {0} ===", adapter.Name);
+        Console.WriteLine("1. 8.8.8.8 , 1.1.1.1");
+        Console.WriteLine("2. 4.2.2.4 , 8.8.8.8");
+        Console.WriteLine("3. 178.22.122.100 , 185.51.200.2");
+        Console.WriteLine("4. Automatic (DHCP)");
+        Console.Write("Choose: ");
+        string choice = Console.ReadLine();
+
+        switch (choice)
+        {
+            case "1":
+                RunNetsh("interface ip set dns name=\"" + adapter.Name + "\" static 8.8.8.8 primary");
+                RunNetsh("interface ip add dns name=\"" + adapter.Name + "\" 1.1.1.1 index=2");
+                break;
+            case "2":
+                RunNetsh("interface ip set dns name=\"" + adapter.Name + "\" static 4.2.2.4 primary");
+                RunNetsh("interface ip add dns name=\"" + adapter.Name + "\" 8.8.8.8 index=2");
+                break;
+            case "3":
+                RunNetsh("interface ip set dns name=\"" + adapter.Name + "\" static 178.22.122.100 primary");
+                RunNetsh("interface ip add dns name=\"" + adapter.Name + "\" 185.51.200.2 index=2");
+                break;
+            case "4":
+                RunNetsh("interface ip set dns name=\"" + adapter.Name + "\" dhcp");
+                break;
+            default:
+                Console.WriteLine("Invalid choice. Press Enter...");
+                Console.ReadLine();
+                return;
+        }
+
+        Console.WriteLine("DNS applied. Press Enter to continue...");
         Console.ReadLine();
     }
 
-    enum FilterType
+    static void RunNetsh(string command)
     {
-        AllPhysical,
-        Active,
-        WiFi,
-        LAN
-    }
+        ProcessStartInfo psi = new ProcessStartInfo("netsh", command);
+        psi.UseShellExecute = true; // لازم است برای دسترسی admin
+        psi.Verb = "runas";
+        psi.CreateNoWindow = true;
 
-    static void ShowNetworkCards(FilterType filter)
-    {
-        Console.Clear();
-        Console.WriteLine($"=== {filter} Network Cards ===");
-
-        NetworkInterface[] adapters = NetworkInterface.GetAllNetworkInterfaces();
-        foreach (NetworkInterface adapter in adapters)
-        {
-            if (IsVirtual(adapter)) continue;
-
-            bool show = false;
-
-            switch (filter)
-            {
-                case FilterType.AllPhysical:
-                    show = true;
-                    break;
-                case FilterType.Active:
-                    show = adapter.OperationalStatus == OperationalStatus.Up;
-                    break;
-                case FilterType.WiFi:
-                    show = adapter.NetworkInterfaceType == NetworkInterfaceType.Wireless80211;
-                    break;
-                case FilterType.LAN:
-                    show = adapter.NetworkInterfaceType == NetworkInterfaceType.Ethernet;
-                    break;
-            }
-
-            if (show)
-            {
-                Console.WriteLine($"Name: {adapter.Name}");
-                Console.WriteLine($"Description: {adapter.Description}");
-                Console.WriteLine($"Type: {adapter.NetworkInterfaceType}");
-                Console.WriteLine($"Status: {adapter.OperationalStatus}");
-                Console.WriteLine(new string('-', 40));
-            }
-        }
-    }
-
-    static void ShowNetworkDetails()
-    {
-        Console.Clear();
-        Console.WriteLine("=== Network Cards Details (IP + MAC) ===");
-
-        NetworkInterface[] adapters = NetworkInterface.GetAllNetworkInterfaces();
-        foreach (NetworkInterface adapter in adapters)
-        {
-            if (IsVirtual(adapter)) continue;
-
-            Console.WriteLine($"Name: {adapter.Name}");
-            Console.WriteLine($"Description: {adapter.Description}");
-            Console.WriteLine($"Type: {adapter.NetworkInterfaceType}");
-            Console.WriteLine($"Status: {adapter.OperationalStatus}");
-
-            // نمایش MAC Address
-            string mac = BitConverter.ToString(adapter.GetPhysicalAddress().GetAddressBytes());
-            Console.WriteLine($"MAC Address: {mac}");
-
-            // نمایش آدرس‌های IP
-            IPInterfaceProperties ipProps = adapter.GetIPProperties();
-            foreach (UnicastIPAddressInformation ip in ipProps.UnicastAddresses)
-            {
-                if (ip.Address.AddressFamily == AddressFamily.InterNetwork) // IPv4
-                {
-                    Console.WriteLine($"IPv4: {ip.Address}");
-                }
-                else if (ip.Address.AddressFamily == AddressFamily.InterNetworkV6) // IPv6
-                {
-                    Console.WriteLine($"IPv6: {ip.Address}");
-                }
-            }
-
-            Console.WriteLine(new string('-', 40));
-        }
-    }
-
-    static bool IsVirtual(NetworkInterface adapter)
-    {
-        return adapter.NetworkInterfaceType == NetworkInterfaceType.Loopback ||
-               adapter.NetworkInterfaceType == NetworkInterfaceType.Tunnel ||
-               adapter.Description.IndexOf("virtual", StringComparison.OrdinalIgnoreCase) >= 0 ||
-               adapter.Description.IndexOf("vpn", StringComparison.OrdinalIgnoreCase) >= 0;
+        Process proc = Process.Start(psi);
+        proc.WaitForExit();
     }
 }
